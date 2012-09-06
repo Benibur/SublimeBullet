@@ -14,7 +14,7 @@ class Bullet(sublime_plugin.EventListener):
   md_enabled = False
   rest_enabled = False
   file_type = 0
-  last_line = 0
+  last_row = 0
   last_pos = 0
   #selectors = []
   selector_array = []
@@ -61,39 +61,50 @@ class Bullet(sublime_plugin.EventListener):
     loc = view.sel()[0]
     self.last_pos = loc.begin()
     row, col = view.rowcol(self.last_pos)
-    self.last_line = row
+    self.last_row = row
 
   def on_modified(self, view):
     if self.Modifying == False:
       self.Modifying = True
-      loc = view.sel()[0]
-      row, col = view.rowcol(loc.begin())
-      point_last_row = view.text_point(row - 1,0)
-      if (row - self.last_line == 1):
-        previous_line = view.substr(view.line(self.last_pos))
-        if row != 0 and previous_line != "":
-          bullet_chars = self.bullet_chars[self.file_type].split()
-          bullet_re = "|".join(map(re.escape, bullet_chars))
-          search_re = "^( *|\t*)(%s|([0-9]+)\.)(.*)" % bullet_re
-          match_pattern = re.search(search_re, previous_line)
-          if match_pattern != None:
-            if match_pattern.group(4) in [" ",""]:
-              # remove empty bullet point upon newline
-              reg_remove = view.find("\S.*", point_last_row)
-              edit = view.begin_edit()
-              view.erase(edit,reg_remove)
-              view.end_edit(edit)
-            else:
-              if match_pattern.group(3) != None:
-                # insert incremented number
-                last_number = int(match_pattern.group(3))
-                insertion = str(last_number+1) + ". "
-              else:
-                # insert bullet
-                insertion = match_pattern.group(2) + " "
-              edit = view.begin_edit()
-              view.insert(edit, loc.end(), insertion)
-              view.end_edit(edit)
+      insert_point = view.sel()[0].begin()
+      row, col = view.rowcol(insert_point)
+      last_cmd, last_cmd_args, last_cmd_count = view.command_history(0)
+
+      # new line
+      if row != 0 and row - self.last_row == 1:
+        ref_row = row - 1 # row above
+        self.bullet_event(view, insert_point, ref_row)
+      elif last_cmd == "run_macro_file" and last_cmd_count == 1 \
+          and last_cmd_args == {'file': u'Packages/Default/Add Line Before.sublime-macro'}:
+        ref_row = row + 1
+        self.bullet_event(view, insert_point, ref_row)
       self.update_row(view)
       self.Modifying = False
 
+  def bullet_event(self, view, insert_point, ref_row):
+    ref_line = view.line(view.text_point(ref_row, 0))
+    ref_row_start = ref_line.begin()
+    ref_line_txt = view.substr(ref_line)
+    if ref_line_txt != "":
+      bullet_chars = self.bullet_chars[self.file_type].split()
+      bullet_re = "|".join(map(re.escape, bullet_chars))
+      search_re = "^( *|\t*)(%s|([0-9]+)\.)(.*)" % bullet_re
+      match_pattern = re.search(search_re, ref_line_txt)
+      if match_pattern != None:
+        if match_pattern.group(4) in [" ",""]:
+          # remove empty bullet point upon newline
+          reg_remove = view.find("\S.*", ref_row_start)
+          edit = view.begin_edit()
+          view.erase(edit,reg_remove)
+          view.end_edit(edit)
+        else:
+          if match_pattern.group(3) != None:
+            # insert incremented number
+            last_number = int(match_pattern.group(3))
+            insertion = str(last_number+1) + ". "
+          else:
+            # insert bullet
+            insertion = match_pattern.group(2) + " "
+          edit = view.begin_edit()
+          view.insert(edit, insert_point, insertion)
+          view.end_edit(edit)
