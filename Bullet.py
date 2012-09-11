@@ -68,7 +68,7 @@ class Bullet(sublime_plugin.EventListener):
       view.erase_regions(BULLET_LAST_POINT)
     else:
       last_line_start = sublime.Region(last_line.begin())
-      view.add_regions(BULLET_LAST_POINT, [last_line_start], BULLET_SCOPE, "circle")
+      view.add_regions(BULLET_LAST_POINT, [last_line_start], BULLET_SCOPE, "")
 
   def last_pos(self, view):
     last_regions = view.get_regions(BULLET_LAST_POINT)
