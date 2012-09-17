@@ -103,8 +103,8 @@ class Bullet(sublime_plugin.EventListener):
     ref_line_txt = view.substr(ref_line)
     if ref_line_txt != "":
       match_result = self.match_bullet_line(ref_line_txt)
-      pre_bullet, bullet, num_bullet, bullet_contents = match_result.groups()
       if match_result != None:
+        pre_bullet, bullet, num_bullet, bullet_contents = match_result.groups()
         if bullet_contents in [" ",""]:
           # remove empty bullet point upon newline
           reg_remove = view.find("\S.*", ref_row_start)
