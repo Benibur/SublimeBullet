@@ -51,14 +51,47 @@ class Bullet(sublime_plugin.EventListener):
 
   def on_selection_modified(self, view):
     if self.file_type > 0:
+      # home
+      last_cmd, last_cmd_args, last_cmd_count = view.command_history(0)
+      if last_cmd == "move_to" \
+        and last_cmd_args["to"] == "bol":
+        extend = last_cmd_args["extend"]
+        self.move_to_text_start(view, extend)
       self.update_last_pos(view)
+
+  def on_modified(self, view):
+    if self.file_type > 0 and self.Modifying == False:
+      last_row = self.last_row(view)
+      if last_row is not None:
+        self.Modifying = True
+        current_point = view.sel()[0].begin()
+        current_row = view.rowcol(current_point)[0]
+        last_cmd, last_cmd_args, last_cmd_count = view.command_history(0)
+        non_undo = view.command_history(1)[0] == None
+
+        # new line
+        if current_row > 0 and abs(current_row - last_row) == 1:
+          self.add_or_remove_bullet(view)
+        # join lines
+        elif non_undo and last_cmd == "join_lines":
+          self.join_bullet_lines(view)
+
+        self.Modifying = False
 
   def match_bullet_line(self, text):
     bullet_chars = self.bullet_chars[self.file_type].split()
     bullet_re = "|".join(map(re.escape, bullet_chars))
-    search_re = "^( *|\t*)(%s|([0-9]+)\.)(.*)" % bullet_re
+    search_re = "^( *|\t*)(%s|([0-9]+)\.)(\s+.*)" % bullet_re
     match_result = re.search(search_re, text)
     return match_result
+
+  def line_match_data(self, view):
+    ref_row_start = self.last_pos(view)
+    ref_line = view.line(ref_row_start)
+    ref_line_txt = view.substr(ref_line)
+    if ref_line_txt != "":
+      match_result = self.match_bullet_line(ref_line_txt)
+    return (match_result, ref_row_start, ref_line, ref_line_txt)
 
   def update_last_pos(self, view):
     last_line = view.line(view.sel()[0])
@@ -80,63 +113,39 @@ class Bullet(sublime_plugin.EventListener):
     if last_pos is not None:
       return view.rowcol(last_pos)[0]
 
-  def on_modified(self, view):
-    if self.file_type > 0 and self.Modifying == False:
-      last_row = self.last_row(view)
-      if last_row is not None:
-        self.Modifying = True
-        current_point = view.sel()[0].begin()
-        current_row = view.rowcol(current_point)[0]
-        last_cmd, last_cmd_args, last_cmd_count = view.command_history(0)
-        non_undo = view.command_history(1)[0] == None
-
-        # new line
-        if current_row > 0 and abs(current_row - last_row) == 1:
-          self.add_or_remove_bullet(view)
-        elif non_undo and last_cmd == "join_lines":
-          self.join_bullet_lines(view)
-        self.Modifying = False
-
   def add_or_remove_bullet(self, view):
-    ref_row_start = self.last_pos(view)
-    ref_line = view.line(ref_row_start)
-    ref_line_txt = view.substr(ref_line)
-    if ref_line_txt != "":
-      match_result = self.match_bullet_line(ref_line_txt)
-      if match_result != None:
-        pre_bullet, bullet, num_bullet, bullet_contents = match_result.groups()
-        if bullet_contents in [" ",""]:
-          # remove empty bullet point upon newline
-          reg_remove = view.find("\S.*", ref_row_start)
-          edit = view.begin_edit()
-          view.erase(edit,reg_remove)
-          view.end_edit(edit)
+    match_result, ref_row_start, ref_line, ref_line_txt = self.line_match_data(view)
+    if match_result != None:
+      pre_bullet, bullet, num_bullet, bullet_contents = match_result.groups()
+      if bullet_contents in [" ",""]:
+        # remove empty bullet point upon newline
+        reg_remove = view.find("\S.*", ref_row_start)
+        edit = view.begin_edit()
+        view.erase(edit,reg_remove)
+        view.end_edit(edit)
+      else:
+        if num_bullet != None:
+          # insert incremented number
+          last_number = int(num_bullet)
+          insertion = str(last_number+1) + ". "
         else:
-          if num_bullet != None:
-            # insert incremented number
-            last_number = int(num_bullet)
-            insertion = str(last_number+1) + ". "
-          else:
-            # insert bullet
-            insertion = bullet + " "
-          edit = view.begin_edit()
-          # duplicate ref_line init whitespace
-          insert_point = view.sel()[0].begin()
-          line_start = view.line(insert_point).begin()
-          init_whitespace = sublime.Region(line_start, insert_point)
-          replacement = pre_bullet+insertion
-          view.replace(edit, init_whitespace, replacement)
-          final_pos = view.sel()[0].end()
-          view.sel().clear()
-          view.sel().add(sublime.Region(final_pos))
-          view.end_edit(edit)
+          # insert bullet
+          insertion = bullet + " "
+        edit = view.begin_edit()
+        # duplicate ref_line init whitespace
+        insert_point = view.sel()[0].begin()
+        line_start = view.line(insert_point).begin()
+        init_whitespace = sublime.Region(line_start, insert_point)
+        replacement = pre_bullet+insertion
+        view.replace(edit, init_whitespace, replacement)
+        final_pos = view.sel()[0].end()
+        view.sel().clear()
+        view.sel().add(sublime.Region(final_pos))
+        view.end_edit(edit)
 
   def join_bullet_lines(self, view):
-    line_start = self.last_pos(view)
-    line = view.line(line_start)
-    line_txt = view.substr(line)
+    match_result, line_start, line, line_txt = self.line_match_data(view)
     line_end = line.end()
-    match_result = self.match_bullet_line(line_txt)
     bullet = match_result.groups()[1]
     if bullet.isdigit():
       bullet_re = "\d "
@@ -158,4 +167,15 @@ class Bullet(sublime_plugin.EventListener):
     for b in reversed(found_bullets):
       view.erase(edit, b)
     view.end_edit(edit)
+
+  def move_to_text_start(self, view, extend):
+    if extend:
+      # do nothing for now
+      s = view.sel()[0]
+    else:
+      row_start = self.last_pos(view)
+      if row_start is not None:
+        text_start = view.find("\S+\s+", row_start).end()
+        view.sel().clear()
+        view.sel().add(sublime.Region(text_start))
 
