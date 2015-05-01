@@ -15,17 +15,20 @@ BULLET_LAST_POINT = "sublime_bullet_last_point"
 class Bullet(sublime_plugin.EventListener):
   Modifying = False
   md_enabled = False
+  txt_enabled = False
   rest_enabled = False
   file_type = 0
   bullet_chars = [
     "",
     "* - > +", # Markdown
-    u"* - + \u2022 \u2043 \u2023" # reStructuredText (* - + • ⁃ ‣)
+    u"* - + \u2022 \u2043 \u2023", # reStructuredText (* - + • ⁃ ‣)
+    "* - > + ." # text
   ]
 
   def __init__(self):
     s = sublime.load_settings("Bullet.sublime-settings")
     self.md_enabled = s.get("markdown_bullet_enabled", True)
+    self.txt_enabled = s.get("text_bullet_enabled", True)
     self.rest_enabled = s.get("restructuredtext_bullet_enabled", False)
 
   def on_activated(self, view):
@@ -34,12 +37,17 @@ class Bullet(sublime_plugin.EventListener):
     rest_score = 0
     if self.md_enabled:
       md_score = view.score_selector(0,'text.html.markdown')
+    if self.txt_enabled:
+      txt_score = view.score_selector(0,'text')
     if self.rest_enabled:
       rest_score = view.score_selector(0,'text.restructuredtext')
+
     if md_score > 0 and md_score >= rest_score:
-      self.file_type = 1
+      self.file_type = 1 # markdown
     elif rest_score > 0 and rest_score >= md_score:
-      self.file_type = 2
+      self.file_type = 2 # restructured txt
+    elif txt_score > 0:
+      self.file_type = 3 # text
     else:
       self.file_type = 0
 
@@ -60,6 +68,7 @@ class Bullet(sublime_plugin.EventListener):
       self.update_last_pos(view)
 
   def on_modified(self, view):
+
     if self.file_type > 0 and self.Modifying == False:
       last_row = self.last_row(view)
       if last_row is not None:
