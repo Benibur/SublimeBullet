@@ -21,7 +21,9 @@ In markdown files, * , + and - are automatically added for unordered lists (aka 
 
 For ordered lists, the new item will use a number next to the previous item. For example when you hit "enter" after typing "1. Item one", "2. " will be added automatically to the next line.
 
-I may add other bullet point style later. For now it only support markdown style.
+Also supports
+  1. reStructuredText (bulets in [* - + • ⁃ ‣])
+  2. raw text (bulets in [* - > + .] and ordered list)
 
 ## Operating Systems
 
