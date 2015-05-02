@@ -68,7 +68,6 @@ class Bullet(sublime_plugin.EventListener):
       self.update_last_pos(view)
 
   def on_modified(self, view):
-
     if self.file_type > 0 and self.Modifying == False:
       last_row = self.last_row(view)
       if last_row is not None:
